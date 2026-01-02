@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>客來堡活力早午餐系統</title>
+    <style>
+        :root { --blue: #004a99; --yellow: #ffcc00; --red: #d9534f; --light-bg: #f8f9fa; }
+        body { font-family: "Microsoft JhengHei", sans-serif; background: var(--light-bg); margin: 0; padding-bottom: 120px; color: #333; }
+        header { background: var(--blue); color: var(--yellow); text-align: center; padding: 20px 10px; position: sticky; top: 0; z-index: 1000; box-shadow: 0 2px 10px rgba(0,0,0,0.2); }
+        .container { max-width: 600px; margin: auto; padding: 10px; }
+        .category { background: white; border-radius: 12px; padding: 15px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+        h2 { font-size: 1.2rem; color: var(--blue); border-bottom: 2px solid var(--yellow); padding-bottom: 5px; margin-bottom: 15px; display: flex; align-items: center; }
+        .item { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid #f0f0f0; }
+        .item:last-child { border-bottom: none; }
+        .item-info { flex: 1; }
+        .item-name { font-weight: bold; font-size: 1rem; display: block; }
+        .item-price { color: var(--red); font-weight: bold; font-size: 0.9rem; }
+        .controls { display: flex; align-items: center; gap: 12px; }
+        .btn-qty { width: 32px; height: 32px; border-radius: 8px; border: 1px solid #ddd; background: #fff; font-size: 1.2rem; cursor: pointer; transition: 0.2s; display: flex; align-items: center; justify-content: center; }
+        .btn-qty:active { background: #eee; transform: scale(0.9); }
+        .qty-val { min-width: 25px; text-align: center; font-weight: bold; font-size: 1.1rem; }
+        
+        /* 底部結帳區 */
+        .cart-bar { position: fixed; bottom: 0; left: 0; right: 0; background: #222; color: white; padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; z-index: 2000; }
+        .total-text { font-size: 1.2rem; font-weight: bold; }
+        .total-price { color: var(--yellow); font-size: 1.4rem; }
+        .btn-submit { background: var(--yellow); color: #000; border: none; padding: 12px 25px; border-radius: 8px; font-weight: bold; font-size: 1rem; cursor: pointer; }
+
+        /* 報表區 */
+        .report-section { background: #eee; padding: 20px; margin-top: 20px; border-radius: 10px; font-size: 0.9rem; }
+        .report-btn { background: #666; color: white; border: none; width: 100%; padding: 10px; border-radius: 5px; margin-bottom: 10px; }
+        #report-content { display: none; }
+    </style>
+</head>
+<body>
+
+<header>
+    <h1 style="margin:0;">客來堡活力早午餐</h1>
+    <div style="font-size: 0.9rem; margin-top:5px;">訂購專線：06-7223530</div>
+</header>
+
+<div class="container" id="menu-board">
+    </div>
+
+<div class="container report-section">
+    <button class="report-btn" onclick="toggleReport()">查看今日營業統計 (對帳用)</button>
+    <div id="report-content">
+        <h3>今日收支報表</h3>
+        <p>總接單數：<span id="stat-count">0</span> 單</p>
+        <p>總營業額：$<span id="stat-total">0</span></p>
+        <hr>
+        <h4>熱賣品項統計：</h4>
+        <div id="stat-items-list">尚無數據</div>
+        <button onclick="clearStats()" style="margin-top:20px; color:red;">清空今日統計 (隔日重算)</button>
+    </div>
+</div>
+
+<div class="cart-bar">
+    <div class="total-text">總金額: <span class="total-price">$<span id="grand-total">0</span></span></div>
+    <button class="btn-submit" onclick="confirmOrder()">送出訂單</button>
+</div>
+
+<script>
+// 完整品項資料庫
+const menu = [
+    { cat: "蛋吐司 / 漢堡 (漢堡同價)", items: [
+        {n: "夾蛋", p: 30}, {n: "起司", p: 40}, {n: "蔬菜", p: 40}, {n: "火腿", p: 40},
+        {n: "培根", p: 40}, {n: "肉鬆", p: 40}, {n: "鮪魚", p: 40}, {n: "漢堡肉", p: 45},
+        {n: "香雞排", p: 45}, {n: "燒烤肉排★", p: 50}, {n: "菲力雞排★", p: 50},
+        {n: "黃金蝦排", p: 55}, {n: "日式香酥魚排", p: 60}, {n: "韓式雞腿排★", p: 65}, {n: "法國吐司", p: 45}
+    ]},
+    { cat: "蛋餅系列", items: [
+        {n: "原味蛋餅", p: 30}, {n: "起司蛋餅", p: 40}, {n: "蔬菜蛋餅", p: 40}, {n: "火腿蛋餅", p: 40},
+        {n: "培根蛋餅", p: 40}, {n: "玉米蛋餅", p: 40}, {n: "肉鬆蛋餅", p: 40}, {n: "鮪魚蛋餅", p: 40},
+        {n: "熱狗蛋餅", p: 40}, {n: "薯餅蛋餅", p: 45}, {n: "漢堡肉蛋餅", p: 45}, {n: "燒烤肉蛋餅★", p: 50}, {n: "菲力雞蛋餅★", p: 50}
+    ]},
+    { cat: "果醬吐司 / 厚片", items: [
+        {n: "草莓吐司", p: 20}, {n: "巧克力吐司", p: 20}, {n: "花生吐司", p: 20}, {n: "奶酥厚片", p: 30},
+        {n: "巧克力厚片", p: 30}, {n: "花生厚片", p: 30}, {n: "香蒜厚片", p: 30}, {n: "鮪魚玉米厚片", p: 45}
+    ]},
+    { cat: "總匯三明治", items: [
+        {n: "漢堡肉總匯", p: 60}, {n: "香雞排總匯", p: 60}, {n: "燒烤肉排總匯★", p: 65},
+        {n: "菲力雞排總匯★", p: 65}, {n: "黃金蝦排總匯", p: 70}, {n: "韓式雞腿排總匯★", p: 80}
+    ]},
+    { cat: "鍋燒系列", items: [
+        {n: "鍋燒意麵(小)", p: 75}, {n: "鍋燒意麵(大)", p: 90}, {n: "鍋燒雞絲(小)", p: 75}, 
+        {n: "鍋燒泡麵(小)", p: 75}, {n: "鍋燒烏龍(小)", p: 75}
+    ]},
+    { cat: "烤肉排蛋鐵板麵", items: [
+        {n: "蘑菇鐵板麵", p: 90}, {n: "黑胡椒鐵板麵", p: 90}
+    ]},
+    { cat: "單點 / 小吃", items: [
+        {n: "荷包蛋", p: 15}, {n: "熱狗(3條)", p: 20}, {n: "薯餅", p: 20}, {n: "雞塊", p: 30},
+        {n: "雞米花", p: 30}, {n: "蔥抓餅加蛋", p: 45}, {n: "蘿蔔糕", p: 30}, {n: "營養早餐★", p: 50}
+    ]},
+    { cat: "飲品", items: [
+        {n: "紅茶(中)", p: 20}, {n: "紅茶(大)", p: 25}, {n: "奶茶(中)", p: 25}, {n: "奶茶(大)", p: 30},
+        {n: "鮮奶紅茶(大)", p: 40}, {n: "豆漿(中)", p: 20}, {n: "豆漿(大)", p: 25}, {n: "玉米濃湯(中)", p: 30}
+    ]}
+];
+
+let cart = {};
+let stats = JSON.parse(localStorage.getItem('daily_sales')) || { total: 0, count: 0, items: {} };
+
+function initMenu() {
+    const board = document.getElementById('menu-board');
+    menu.forEach((category, cIdx) => {
+        let section = `<div class="category"><h2>${category.cat}</h2>`;
+        category.items.forEach((item, iIdx) => {
+            const itemId = `item-${cIdx}-${iIdx}`;
+            section += `
+                <div class="item">
+                    <div class="item-info">
+                        <span class="item-name">${item.n}</span>
+                        <span class="item-price">$${item.p}</span>
+                    </div>
+                    <div class="controls">
+                        <button class="btn-qty" onclick="changeQty('${itemId}', '${item.n}', ${item.p}, -1)">-</button>
+                        <span class="qty-val" id="qty-${itemId}">0</span>
+                        <button class="btn-qty" onclick="changeQty('${itemId}', '${item.n}', ${item.p}, 1)">+</button>
+                    </div>
+                </div>`;
+        });
+        section += `</div>`;
+        board.innerHTML += section;
+    });
+}
+
+function changeQty(id, name, price, delta) {
+    if (!cart[id]) cart[id] = { name: name, price: price, qty: 0 };
+    cart[id].qty += delta;
+    if (cart[id].qty < 0) cart[id].qty = 0;
+    
+    document.getElementById(`qty-${id}`).innerText = cart[id].qty;
+    updateTotal();
+}
+
+function updateTotal() {
+    let grandTotal = 0;
+    for (let id in cart) {
+        grandTotal += cart[id].qty * cart[id].price;
+    }
+    document.getElementById('grand-total').innerText = grandTotal;
+}
+
+function confirmOrder() {
+    let total = parseInt(document.getElementById('grand-total').innerText);
+    if (total === 0) return alert("還沒選餐點喔！");
+
+    if (confirm(`訂單金額共 $${total}，確定送出並記錄營收嗎？`)) {
+        // 紀錄到統計數據
+        stats.count += 1;
+        stats.total += total;
+        for (let id in cart) {
+            if (cart[id].qty > 0) {
+                stats.items[cart[id].name] = (stats.items[cart[id].name] || 0) + cart[id].qty;
+            }
+        }
+        localStorage.setItem('daily_sales', JSON.stringify(stats));
+        
+        alert("訂單已記錄！");
+        location.reload(); // 重整頁面清空當次點餐
+    }
+}
+
+function toggleReport() {
+    const content = document.getElementById('report-content');
+    content.style.display = content.style.display === 'block' ? 'none' : 'block';
+    if (content.style.display === 'block') {
+        document.getElementById('stat-count').innerText = stats.count;
+        document.getElementById('stat-total').innerText = stats.total;
+        const list = document.getElementById('stat-items-list');
+        list.innerHTML = "";
+        for (let name in stats.items) {
+            list.innerHTML += `<div>${name}：${stats.items[name]} 份</div>`;
+        }
+    }
+}
+
+function clearStats() {
+    if (confirm("確定要刪除今日所有營業額紀錄嗎？")) {
+        localStorage.removeItem('daily_sales');
+        location.reload();
+    }
+}
+
+initMenu();
+</script>
+
+</body>
+</html>
